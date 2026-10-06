@@ -1,4 +1,4 @@
-av==19.0.1
+av==13.1.0
 faster-whisper==1.2.1
 PyAudioWPatch==0.2.12.9
 yt-dlp==2026.8.19

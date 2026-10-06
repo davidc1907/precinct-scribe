@@ -218,4 +218,18 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-./idea
+# PyCharm
+.idea/
+
+# precinct-scribe: no transcripts, recordings or media in the repo
+transcripts/
+transkripte/
+mitschrift_dateien/
+*.txt
+!requirements*.txt
+*.wav
+*.webm
+*.mp4
+*.mp3
+*.m4a
+*.opus

@@ -10,7 +10,7 @@ if sys.platform == "win32":
 
 from faster_whisper import WhisperModel
 from yt_dlp import YoutubeDL
-from livestream import convert_seconds
+from livestream import convert_seconds, list_devices
 
 folder = "transcripts"
 os.makedirs(f"{folder}", exist_ok=True)
@@ -31,8 +31,17 @@ parser.add_argument('-n', '--names')
 source_group = parser.add_mutually_exclusive_group(required=True)
 source_group.add_argument('-f', '--file')
 source_group.add_argument('-l', '--link')
+source_group.add_argument('-a', '--audio', action='store_true', help='Record System Audio')
+source_group.add_argument('--list-devices', action='store_true', help='List audio devices and exit')
+
+parser.add_argument('--device', type=int, help='Device Number from --list-devices')
 
 args = parser.parse_args()
+
+
+if args.list_devices:
+    list_devices()
+    raise SystemExit
 
 if args.file and not os.path.isfile(args.file):
     parser.error(f"File not found: {args.file}")
