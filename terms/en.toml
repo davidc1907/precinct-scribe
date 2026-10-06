@@ -1,0 +1,30 @@
+# Terms for the Whisper initial_prompt (US English videos).
+# "base" is always used, topics are selected with -t.
+# Keep the total under roughly 120 to 150 words, Whisper truncates longer prompts.
+# Check office holders regularly.
+# Spellings follow AP style. Adjust for your outlet if needed.
+
+base = "U.S. news. White House, Congress, Senate, House of Representatives, Supreme Court, Democrats, Republicans, Speaker of the House, Senate Majority Leader, governor, state legislature."
+
+[topics]
+politics = "Midterms, primaries, swing states, Electoral College, filibuster, government shutdown, continuing resolution, executive order, impeachment, confirmation hearing, approval rating, polling."
+
+economy = "Federal Reserve, interest rates, inflation, consumer price index, jobs report, unemployment rate, GDP, recession, tariffs, trade deficit, national debt, debt ceiling, minimum wage, Social Security, Medicare, Medicaid, labor unions, strike."
+
+climate = "Climate change, EPA, carbon emissions, clean energy, renewables, solar, wind power, electric vehicles, fossil fuels, fracking, Paris Agreement, wildfires, Inflation Reduction Act."
+
+immigration = "Immigration, asylum seekers, refugees, migrants, undocumented immigrants, illegal immigration, ICE, Customs and Border Protection, Border Patrol, southern border, deportation, DACA, Dreamers, green card, H-1B visa."
+
+security = "Pentagon, Department of Defense, defense budget, Joint Chiefs of Staff, Army, Navy, Air Force, Marines, National Guard, drones, cyberattack, CIA, NSA, FBI, Department of Homeland Security, NATO."
+
+ukraine = "Ukraine, Zelenskyy, Kyiv, Kharkiv, Zaporizhzhia, Donetsk, Luhansk, Kherson, Odesa, Russia, Putin, Kremlin, ceasefire, peace talks, Patriot missiles, ATACMS, sanctions."
+
+middle_east = "Israel, Gaza Strip, West Bank, Jerusalem, Rafah, Khan Younis, Hamas, Hezbollah, Houthis, Iran, Tehran, UNRWA, ceasefire, hostages, humanitarian aid, International Criminal Court, Netanyahu."
+
+eu = "European Union, European Commission, European Parliament, Brussels, von der Leyen, NATO allies, Germany, Bundestag, Chancellor, France, United Kingdom, Prime Minister."
+
+justice = "Supreme Court, Justice Department, attorney general, federal judge, district court, appeals court, grand jury, indictment, arraignment, plea deal, verdict, sentencing, special counsel."
+
+sport = "NFL, NBA, MLB, NHL, MLS, Super Bowl, World Series, playoffs, quarterback, touchdown, March Madness, Olympics."
+
+weather = "National Weather Service, hurricane, tropical storm, tornado, severe thunderstorms, heat wave, winter storm, blizzard, flash flood, degrees Fahrenheit, high pressure, cold front."

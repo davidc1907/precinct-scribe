@@ -1,0 +1,31 @@
+# Terms for the Whisper initial_prompt (German-language videos).
+# "base" is always used, topics are selected with -t.
+# Keep the total under roughly 120 to 150 words, Whisper truncates longer prompts.
+# Check office holders regularly.
+
+base = "Nachrichten aus Deutschland. Bundestag, Bundesrat, Bundesregierung, Bundeskanzleramt, Bundesverfassungsgericht. Parteien: CDU/CSU, SPD, Bündnis 90/Die Grünen, AfD, Die Linke, BSW, FDP."
+
+[topics]
+politics = "Koalitionsausschuss, Fraktion, Fraktionsvorsitz, Haushaltsausschuss, Untersuchungsausschuss, Vermittlungsausschuss, Ministerpräsidentenkonferenz, Landtag, Landtagswahl, Sondierung, Koalitionsvertrag, Misstrauensvotum."
+
+economy = "Schuldenbremse, Sondervermögen, Bundeshaushalt, Bürgergeld, Grundsicherung, Mindestlohn, Rentenpaket, Rentenniveau, Mietpreisbremse, Wohngeld, Inflation, Bruttoinlandsprodukt, Ifo-Index, Verdi, IG Metall, Tarifverhandlungen, Warnstreik."
+
+climate = "Klimaschutzgesetz, Gebäudeenergiegesetz, Wärmepumpe, CO2-Preis, Emissionshandel, Kohleausstieg, Netzausbau, Windkraft, Photovoltaik, Wasserstoff, Fridays for Future, Letzte Generation, Deutsche Umwelthilfe."
+
+migration = "Asylantrag, Asylbewerber, Geflüchtete, Flüchtlinge, BAMF, subsidiärer Schutz, Familiennachzug, Abschiebung, Zurückweisung, Grenzkontrollen, GEAS, Dublin-Verfahren, Pro Asyl, Seenotrettung, Frontex."
+
+security = "Bundeswehr, Wehrdienst, Wehrpflicht, Verteidigungsminister Pistorius, Marine, Luftwaffe, Heer, Drohnenabwehr, Sabotage, hybride Bedrohung, Verfassungsschutz, BND, MAD, Parlamentarisches Kontrollgremium, NATO."
+
+ukraine = "Ukraine, Selenskyj, Kiew, Charkiw, Saporischschja, Donezk, Luhansk, Cherson, Odessa, Russland, Putin, Kreml, Waffenstillstand, Taurus, Patriot, Sanktionen."
+
+middle_east = "Israel, Gazastreifen, Westjordanland, Jerusalem, Rafah, Chan Junis, Hamas, Hisbollah, Huthi, Iran, Teheran, UNRWA, Waffenruhe, Geiseln, humanitäre Hilfe, Internationaler Strafgerichtshof."
+
+eu = "Europäisches Parlament, EU-Kommission, Europäischer Rat, Kommissionspräsidentin von der Leyen, Brüssel, Straßburg, Mercosur, Zölle, Binnenmarkt, EZB."
+
+usa = "Weißes Haus, Kongress, Senat, Repräsentantenhaus, Demokraten, Republikaner, Trump, Zölle, Supreme Court, Zwischenwahlen."
+
+justice = "Bundesverfassungsgericht, Karlsruhe, Bundesgerichtshof, Generalbundesanwalt, Staatsanwaltschaft, Ermittlungsverfahren, Haftbefehl, Anklage, Urteil, Revision, Landgericht, Oberlandesgericht."
+
+sport = "Bundesliga, DFB, Bundestrainer, Nationalmannschaft, Nations League, Champions League, Viertelfinale, Elfmeter."
+
+weather = "Hochdruckgebiet, Tiefdruckgebiet, Schauer, Gewitter, Nebel, Böen, Höchstwerte, Tiefstwerte, Grad, Deutscher Wetterdienst."
