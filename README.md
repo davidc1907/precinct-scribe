@@ -162,7 +162,7 @@ A few things that help:
 * Use the same structure as the existing files: a `base` prompt and a `[topics]` table.
 * Keep each prompt short. Whisper only reads roughly the last 150 words.
 * Use the spelling that local news outlets use, especially for names.
-* * Please use neutral, descriptive terms, not political slogans. For example, use "undocumented immigrants", not "illegal aliens".
+* Please use neutral, descriptive terms, not political slogans. For example, use "undocumented immigrants", not "illegal aliens".
 * Write a short comment at the top of the file about the region and the sources you used.
 * Office holders change, so please also send updates for the existing lists.
 
