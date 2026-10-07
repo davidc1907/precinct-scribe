@@ -25,7 +25,7 @@ For all options run `scribe -h` or see [Usage](#usage).
 
 * **Files:** transcribe any local video or audio file
 * **Links:** download and transcribe videos from YouTube and other sites supported by yt-dlp
-* **Live streams:** transcribe a running live stream in chunks of 30 seconds
+* **Live streams:** transcribe a running live stream in batches of 30 seconds
 * **System audio (Windows only):** record and transcribe whatever your computer is playing, for example a parliament stream in the browser
 * **Term lists:** improve the spelling of names and political terms with prompts per language and topic
 * **Clips:** transcribe only part of a file with `--start` and `--end`
@@ -136,6 +136,16 @@ Stop the recording with Ctrl + C. The remaining audio is transcribed before the 
 
 **Note:** An existing transcript with the same name is overwritten. Use a new name with `-o` for every recording.
 
+### Which mode should I use?
+
+| Situation | Mode |
+|---|---|
+| Live stream on YouTube or another site supported by yt-dlp | `-l` |
+| Live stream on a site yt-dlp does not support, for example a broadcaster's media library | `-a` |
+| Anything you want to quote or publish | `-l` or `-f` with the recording after the broadcast |
+
+Live transcription is made for following a debate in real time. For quotes, transcribe the recording afterwards, which is more accurate. On YouTube you can simply run `-l` with the same link once the stream has ended.
+
 ## Term lists
 
 The folder `terms` contains one TOML file per language (`de.toml`, `en.toml`). Each file has a `base` prompt that is always used and a table `topics` with additional terms:
@@ -186,7 +196,7 @@ Whisper is good, but not perfect. Names, numbers and rare terms are often wrong,
 ## Known limitations
 
 * The timestamps of `-a` and live streams start at the beginning of the recording, not at the time in the original broadcast.
-* Live streams and system audio are transcribed in chunks of 30 seconds. A word at the border of a chunk can be cut.
+* Live streams and system audio are transcribed in batches of 30 seconds. A word at the border of a batch can be cut.
 * yt-dlp may show a warning about a missing JavaScript runtime for YouTube. Downloading usually still works. If not, update yt-dlp with `pip install -U yt-dlp`.
 * Only NVIDIA GPUs are supported.
 

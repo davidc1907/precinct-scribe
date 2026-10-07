@@ -41,19 +41,32 @@ def write_segments(segments, f, offset=0.0, quiet=False):
         f.flush()
 
 def transcribe_array(model, audio, language, prompt, f, offset, quiet=False):
-    segments, _ = model.transcribe(
-        audio,
-        language=language,
-        initial_prompt=prompt,
-        vad_filter=True,
-        condition_on_previous_text=False,
-        word_timestamps=True,
-        hallucination_silence_threshold=2.0
-    )
+    try:
+        segments, _ = model.transcribe(
+            audio,
+            language=language,
+            initial_prompt=prompt,
+            vad_filter=True,
+            condition_on_previous_text=False,
+            word_timestamps=True,
+            hallucination_silence_threshold=2.0
+        )
+        segments = list(segments)
+
+    except IndexError:
+        segments, _ = model.transcribe(
+            audio,
+            language=language,
+            initial_prompt=prompt,
+            vad_filter=True,
+            condition_on_previous_text=False
+        )
+        segments = list(segments)
+
     write_segments(segments, f, offset, quiet)
 
 
-def transcribe_chunk(model, raw_bytes, channels, rate, language, prompt, f, offset, quiet=False):
+def transcribe_bytes(model, raw_bytes, channels, rate, language, prompt, f, offset, quiet=False):
     audio = to_whisper_format(raw_bytes, channels, rate)
     transcribe_array(model, audio, language, prompt, f, offset, quiet)
 
@@ -94,7 +107,7 @@ def get_loopback_device(p, device_index):
         raise SystemExit(1)
 
 
-def transcribe_system_audio(model, device_index, language, prompt, path, chunk_seconds=30, quiet=False):
+def transcribe_system_audio(model, device_index, language, prompt, path, batch_seconds=30, quiet=False):
     import queue
     import pyaudiowpatch as pyaudio
 
@@ -110,7 +123,7 @@ def transcribe_system_audio(model, device_index, language, prompt, path, chunk_s
         rate = int(device["defaultSampleRate"])
 
         bytes_per_second = rate * channels * 2
-        chunk_bytes = bytes_per_second * chunk_seconds
+        batch_bytes = bytes_per_second * batch_seconds
 
         print(f"Recording from: {device['name']}")
         print("Press Ctrl + C to stop")
@@ -124,37 +137,37 @@ def transcribe_system_audio(model, device_index, language, prompt, path, chunk_s
                 input_device_index=device['index'],
                 stream_callback=callback) as stream:
 
-            buffer = bytearray()
+            pending_audio = bytearray()
             offset = 0.0
-            chunk_number = 0
+            batch_number = 0
 
             try:
                 while True:
                     try:
-                        buffer += audio_queue.get(timeout=0.5)
+                        pending_audio += audio_queue.get(timeout=0.5)
 
                     except queue.Empty:
                         continue
 
-                    if len(buffer) >= chunk_bytes:
-                        transcribe_chunk(model, bytes(buffer), channels, rate, language, prompt, f, offset, quiet)
-                        offset += len(buffer) / bytes_per_second
-                        chunk_number += 1
+                    if len(pending_audio) >= batch_bytes:
+                        transcribe_bytes(model, bytes(pending_audio), channels, rate, language, prompt, f, offset, quiet)
+                        offset += len(pending_audio) / bytes_per_second
+                        batch_number += 1
                         if quiet:
-                            status = f"Chunk {chunk_number} done {convert_seconds(offset)}"
+                            status = f"Chunk {batch_number} done {convert_seconds(offset)}"
                             print(f"\r{status:<40}", end="", flush=True)
 
-                        buffer = bytearray()
+                        pending_audio = bytearray()
 
             except KeyboardInterrupt:
                 print()
                 print("\n Stopping. Transcribing the rest...")
                 stream.stop_stream()
                 while not audio_queue.empty():
-                    buffer += audio_queue.get()
+                    pending_audio += audio_queue.get()
 
-                if buffer:
-                    transcribe_chunk(model, bytes(buffer), channels, rate, language, prompt, f, offset, quiet)
+                if pending_audio:
+                    transcribe_bytes(model, bytes(pending_audio), channels, rate, language, prompt, f, offset, quiet)
 
     print(f"Saved to {path}")
 
@@ -177,29 +190,29 @@ def transcribe_livestream(model, info, language, prompt, path, chunk_seconds=30,
     container = av.open(stream_url, options=options)
     resampler = av.AudioResampler(format="flt", layout="mono", rate=WHISPER_RATE)
 
-    chunks = []
-    buffered = 0
+    pending_frames = []
+    pending_samples = 0
     offset = 0.0
-    chunk_samples = WHISPER_RATE * chunk_seconds
+    batch_samples = WHISPER_RATE * chunk_seconds
 
     with open(path, "w", encoding="utf-8") as f:
         try:
             for frame in container.decode(audio=0):
                 for out in resampler.resample(frame):
                     samples = out.to_ndarray().reshape(-1)
-                    chunks.append(samples)
-                    buffered += len(samples)
+                    pending_frames.append(samples)
+                    pending_samples += len(samples)
 
-                if buffered >= chunk_samples:
-                    audio = np.concatenate(chunks).astype(np.float32)
+                if pending_samples >= batch_samples:
+                    audio = np.concatenate(pending_frames).astype(np.float32)
                     transcribe_array(model, audio, language, prompt, f, offset, quiet)
-                    offset += buffered / WHISPER_RATE
+                    offset += pending_samples / WHISPER_RATE
                     chunk_number += 1
                     if quiet:
-                        status = f"Chunk {chunk_number} done ({convert_seconds(offset)})"
+                        status = f"Batch {chunk_number} done ({convert_seconds(offset)})"
                         print(f"\r{status:<40}", end="", flush=True)
-                    chunks = []
-                    buffered = 0
+                    pending_frames = []
+                    pending_samples = 0
 
         except KeyboardInterrupt:
             print()
@@ -208,8 +221,8 @@ def transcribe_livestream(model, info, language, prompt, path, chunk_seconds=30,
         finally:
             container.close()
 
-        if chunks:
-            audio = np.concatenate(chunks).astype(np.float32)
+        if pending_frames:
+            audio = np.concatenate(pending_frames).astype(np.float32)
             transcribe_array(model, audio, language, prompt, f, offset, quiet)
 
         print(f"Saved to {path}")
