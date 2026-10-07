@@ -2,6 +2,11 @@ import numpy as np
 from utils import convert_seconds
 
 WHISPER_RATE = 16000
+HALLUCINATIONS = [
+    "Untertitelung des ZDF",
+    "Untertitel im Auftrag des ZDF",
+    "Untertitel der Amara.org-Community",
+]
 
 def to_whisper_format(raw_bytes, channels, rate):
     audio = np.frombuffer(raw_bytes, dtype=np.int16).astype(np.float32) / 32768.0
@@ -21,6 +26,12 @@ def to_whisper_format(raw_bytes, channels, rate):
 
 def write_segments(segments, f, offset=0.0, quiet=False):
     for segment in segments:
+        skip = False
+        for phrase in HALLUCINATIONS:
+            if phrase in segment.text:
+                skip = True
+        if skip:
+            continue
         start_time = convert_seconds(offset + segment.start)
         end_time = convert_seconds(offset + segment.end)
         line=f"[{start_time} -> {end_time}] {segment.text}"
@@ -35,7 +46,9 @@ def transcribe_array(model, audio, language, prompt, f, offset, quiet=False):
         language=language,
         initial_prompt=prompt,
         vad_filter=True,
-        condition_on_previous_text=False
+        condition_on_previous_text=False,
+        word_timestamps=True,
+        hallucination_silence_threshold=2.0
     )
     write_segments(segments, f, offset, quiet)
 
