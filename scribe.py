@@ -2,15 +2,21 @@ import argparse
 import os, sys, glob
 import tomllib
 from pathlib import Path
+import ctranslate2
+
+import site
 
 if sys.platform == "win32":
-    for dll_dir in glob.glob(os.path.join(sys.prefix, "Lib", "site-packages", "nvidia", "*", "bin")):
-        os.add_dll_directory(dll_dir)
-        os.environ["PATH"] = dll_dir + os.pathsep + os.environ["PATH"]
+    search_paths = site.getsitepackages() + [site.getusersitepackages()]
+    for sp in search_paths:
+        for dll_dir in glob.glob(os.path.join(sp, "nvidia", "*", "bin")):
+            os.add_dll_directory(dll_dir)
+            os.environ["PATH"] = dll_dir + os.pathsep + os.environ["PATH"]
 
 from faster_whisper import WhisperModel
 from yt_dlp import YoutubeDL
-from livestream import convert_seconds, list_devices
+from livestream import list_devices, transcribe_system_audio, transcribe_livestream
+from utils import convert_seconds, parse_time
 
 folder = "transcripts"
 os.makedirs(f"{folder}", exist_ok=True)
@@ -24,9 +30,14 @@ parser = argparse.ArgumentParser(
 
 parser.add_argument('-o', '--output')
 
+parser.add_argument('--cpu', action='store_true', help='Run on the CPU instead of the GPU')
+parser.add_argument('-m', '--model', help='Whisper model, e.g. small, medium, turbo, large-v3')
 parser.add_argument('-s', '--language')
 parser.add_argument('-t', '--topics')
 parser.add_argument('-n', '--names')
+parser.add_argument('--start', help='Set start point e.g. 1:42:00')
+parser.add_argument('--end', help='Set end point e.g. 1:50:00')
+parser.add_argument('-q', '--quiet', action='store_true', help='Do not print the transcribed text into the console')
 
 source_group = parser.add_mutually_exclusive_group(required=True)
 source_group.add_argument('-f', '--file')
@@ -92,6 +103,10 @@ def build_prompt(language, topics, names):
 
 prompt = build_prompt(language, args.topics, args.names)
 
+def get_link_info(url):
+    with YoutubeDL({"format": "bestaudio/best", "quiet": True}) as ydl:
+        return ydl.extract_info(url, download=False)
+
 def download_audio(url):
     download_folder = "downloads"
     os.makedirs(download_folder, exist_ok=True)
@@ -110,14 +125,49 @@ def download_audio(url):
 # The transcribing model
 
 def transcribe():
-    model_size = "large-v3"
+    if args.cpu or ctranslate2.get_cuda_device_count() == 0:
+        device = "cpu"
+        compute_type = "int8"
+        model_size = "small"
+    else:
+        device = "cuda"
+        compute_type = "float16"
+        model_size = "large-v3"
 
-    print("Loading model...")
-    model = WhisperModel(model_size, device="cuda", compute_type="float16")
+    if args.model:
+        model_size = args.model
+
+    print(f"Loading model {model_size} on {device}...")
+    model = WhisperModel(model_size, device=device, compute_type=compute_type)
+
+    name = args.output or "transcript"
+    path = os.path.join(folder, f"{name}.txt")
+
+    if args.audio:
+        transcribe_system_audio(model, args.device, language, prompt, path, quiet=args.quiet)
+        return
+
+    if args.link:
+        info = get_link_info(args.link)
+        if info.get("is_live"):
+            transcribe_livestream(model, info, language, prompt, path, quiet=args.quiet)
+            return
 
     source = args.file or download_audio(args.link)
 
     print("Model loaded. Transcribing....")
+
+    clip = "0"
+    if args.start or args.end:
+        if args.start:
+            start = parse_time(args.start)
+        else:
+            start = 0
+
+        if args.end:
+            clip = [start, parse_time(args.end)]
+        else:
+            clip = [start]
 
     segments, info = model.transcribe(
         source,
@@ -125,21 +175,29 @@ def transcribe():
         language=language,
         initial_prompt=prompt,
         vad_filter=True,
-        condition_on_previous_text=False
+        condition_on_previous_text=False,
+        clip_timestamps=clip
     )
 
     print("Waiting for first results...")
-
-    name = args.output or "transcript"
-    path = os.path.join(folder, f"{name}.txt")
 
     with open(path, "w", encoding="utf-8") as f:
         for segment in segments:
             start_time = convert_seconds(segment.start)
             end_time = convert_seconds(segment.end)
             line = f"[{start_time} -> {end_time}] {segment.text}"
-            print(line)
             f.write(line + "\n")
+            f.flush()
+            if args.quiet:
+                percent = segment.end / info.duration * 100
+                status = f"{end_time} / {convert_seconds(info.duration)} ({percent:.0f} %)"
+                print(f"\r{status:<40}", end="", flush=True)
+            else:
+                print(line)
+
+    if args.quiet:
+        print()
+    print(f"Saved to {path}")
 
 
 transcribe()

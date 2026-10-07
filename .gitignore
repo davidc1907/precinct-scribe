@@ -230,6 +230,14 @@ mitschrift_dateien/
 *.wav
 *.webm
 *.mp4
+*.mkv
+*.m4v
+*.mov
 *.mp3
 *.m4a
+*.aac
+*.flac
+*.ogg
 *.opus
+*.part
+*.ytdl
