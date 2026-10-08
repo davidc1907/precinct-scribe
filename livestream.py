@@ -1,12 +1,7 @@
 import numpy as np
-from utils import convert_seconds
+from streaming import StreamingTranscriber
+from utils import WHISPER_RATE
 
-WHISPER_RATE = 16000
-HALLUCINATIONS = [
-    "Untertitelung des ZDF",
-    "Untertitel im Auftrag des ZDF",
-    "Untertitel der Amara.org-Community",
-]
 
 def to_whisper_format(raw_bytes, channels, rate):
     audio = np.frombuffer(raw_bytes, dtype=np.int16).astype(np.float32) / 32768.0
@@ -23,52 +18,6 @@ def to_whisper_format(raw_bytes, channels, rate):
         )
 
     return audio.astype(np.float32)
-
-def write_segments(segments, f, offset=0.0, quiet=False):
-    for segment in segments:
-        skip = False
-        for phrase in HALLUCINATIONS:
-            if phrase in segment.text:
-                skip = True
-        if skip:
-            continue
-        start_time = convert_seconds(offset + segment.start)
-        end_time = convert_seconds(offset + segment.end)
-        line=f"[{start_time} -> {end_time}] {segment.text}"
-        if not quiet:
-            print(line)
-        f.write(line + "\n")
-        f.flush()
-
-def transcribe_array(model, audio, language, prompt, f, offset, quiet=False):
-    try:
-        segments, _ = model.transcribe(
-            audio,
-            language=language,
-            initial_prompt=prompt,
-            vad_filter=True,
-            condition_on_previous_text=False,
-            word_timestamps=True,
-            hallucination_silence_threshold=2.0
-        )
-        segments = list(segments)
-
-    except IndexError:
-        segments, _ = model.transcribe(
-            audio,
-            language=language,
-            initial_prompt=prompt,
-            vad_filter=True,
-            condition_on_previous_text=False
-        )
-        segments = list(segments)
-
-    write_segments(segments, f, offset, quiet)
-
-
-def transcribe_bytes(model, raw_bytes, channels, rate, language, prompt, f, offset, quiet=False):
-    audio = to_whisper_format(raw_bytes, channels, rate)
-    transcribe_array(model, audio, language, prompt, f, offset, quiet)
 
 
 def list_devices():
@@ -107,7 +56,7 @@ def get_loopback_device(p, device_index):
         raise SystemExit(1)
 
 
-def transcribe_system_audio(model, device_index, language, prompt, path, batch_seconds=30, quiet=False):
+def transcribe_system_audio(model, device_index, language, prompt, path, quiet=False):
     import queue
     import pyaudiowpatch as pyaudio
 
@@ -115,15 +64,12 @@ def transcribe_system_audio(model, device_index, language, prompt, path, batch_s
 
     def callback(in_data, frame_count, time_info, status):
         audio_queue.put(in_data)
-        return(in_data, pyaudio.paContinue)
+        return (in_data, pyaudio.paContinue)
 
     with pyaudio.PyAudio() as p:
         device = get_loopback_device(p, device_index)
         channels = device["maxInputChannels"]
         rate = int(device["defaultSampleRate"])
-
-        bytes_per_second = rate * channels * 2
-        batch_bytes = bytes_per_second * batch_seconds
 
         print(f"Recording from: {device['name']}")
         print("Press Ctrl + C to stop")
@@ -137,43 +83,44 @@ def transcribe_system_audio(model, device_index, language, prompt, path, batch_s
                 input_device_index=device['index'],
                 stream_callback=callback) as stream:
 
-            pending_audio = bytearray()
-            offset = 0.0
-            batch_number = 0
+            transcriber = StreamingTranscriber(model, language, prompt, f, quiet)
 
             try:
                 while True:
                     try:
-                        pending_audio += audio_queue.get(timeout=0.5)
+                        data = audio_queue.get(timeout=0.5)
 
                     except queue.Empty:
                         continue
 
-                    if len(pending_audio) >= batch_bytes:
-                        transcribe_bytes(model, bytes(pending_audio), channels, rate, language, prompt, f, offset, quiet)
-                        offset += len(pending_audio) / bytes_per_second
-                        batch_number += 1
-                        if quiet:
-                            status = f"Chunk {batch_number} done {convert_seconds(offset)}"
-                            print(f"\r{status:<40}", end="", flush=True)
+                    chunks = [data]
+                    while not audio_queue.empty():
+                        chunks.append(audio_queue.get_nowait())
 
-                        pending_audio = bytearray()
+                    samples = to_whisper_format(b"".join(chunks), channels, rate)
+                    transcriber.add_audio(samples)
 
             except KeyboardInterrupt:
-                print()
-                print("\n Stopping. Transcribing the rest...")
+                print("\nStopping. Transcribing the rest...")
                 stream.stop_stream()
-                while not audio_queue.empty():
-                    pending_audio += audio_queue.get()
 
-                if pending_audio:
-                    transcribe_bytes(model, bytes(pending_audio), channels, rate, language, prompt, f, offset, quiet)
+                chunks = []
+                while not audio_queue.empty():
+                    chunks.append(audio_queue.get_nowait())
+
+                if chunks:
+                    samples = to_whisper_format(b"".join(chunks), channels, rate)
+                    transcriber.add_audio(samples)
+
+                transcriber.finish()
 
     print(f"Saved to {path}")
 
-def transcribe_livestream(model, info, language, prompt, path, chunk_seconds=30, quiet=False):
+
+def transcribe_livestream(model, info, language, prompt, path, quiet=False):
     import av
-    chunk_number = 0
+    import queue
+    import threading
 
     stream_url = info["url"]
 
@@ -185,44 +132,61 @@ def transcribe_livestream(model, info, language, prompt, path, chunk_seconds=30,
         options = {}
 
     print(f"Live stream: {info.get('title', '')}")
-    print("Press Ctrl + c to stop")
+    print("Press Ctrl + C to stop")
 
-    container = av.open(stream_url, options=options)
-    resampler = av.AudioResampler(format="flt", layout="mono", rate=WHISPER_RATE)
+    audio_queue = queue.Queue()
+    stop = threading.Event()
 
-    pending_frames = []
-    pending_samples = 0
-    offset = 0.0
-    batch_samples = WHISPER_RATE * chunk_seconds
-
-    with open(path, "w", encoding="utf-8") as f:
+    def reader():
+        container = av.open(stream_url, options=options)
+        resampler = av.AudioResampler(format="flt", layout="mono", rate=WHISPER_RATE)
         try:
             for frame in container.decode(audio=0):
+                if stop.is_set():
+                    break
                 for out in resampler.resample(frame):
-                    samples = out.to_ndarray().reshape(-1)
-                    pending_frames.append(samples)
-                    pending_samples += len(samples)
-
-                if pending_samples >= batch_samples:
-                    audio = np.concatenate(pending_frames).astype(np.float32)
-                    transcribe_array(model, audio, language, prompt, f, offset, quiet)
-                    offset += pending_samples / WHISPER_RATE
-                    chunk_number += 1
-                    if quiet:
-                        status = f"Batch {chunk_number} done ({convert_seconds(offset)})"
-                        print(f"\r{status:<40}", end="", flush=True)
-                    pending_frames = []
-                    pending_samples = 0
-
-        except KeyboardInterrupt:
-            print()
-            print("\n Stopping. Transcribing the rest...")
-
+                    audio_queue.put(out.to_ndarray().reshape(-1))
         finally:
             container.close()
+            audio_queue.put(None)
 
-        if pending_frames:
-            audio = np.concatenate(pending_frames).astype(np.float32)
-            transcribe_array(model, audio, language, prompt, f, offset, quiet)
+    thread = threading.Thread(target=reader, daemon=True)
+    thread.start()
 
-        print(f"Saved to {path}")
+    with open(path, "w", encoding="utf-8") as f:
+        transcriber = StreamingTranscriber(model, language, prompt, f, quiet)
+
+        try:
+            ended = False
+            while not ended:
+                try:
+                    chunks = [audio_queue.get(timeout=0.5)]
+                except queue.Empty:
+                    continue
+
+                while not audio_queue.empty():
+                    chunks.append(audio_queue.get_nowait())
+
+                if any(chunk is None for chunk in chunks):
+                    ended = True
+                    chunks = [chunk for chunk in chunks if chunk is not None]
+
+                if chunks:
+                    transcriber.add_audio(np.concatenate(chunks))
+
+        except KeyboardInterrupt:
+            print("\nStopping. Transcribing the rest...")
+            stop.set()
+
+            chunks = []
+            while not audio_queue.empty():
+                chunk = audio_queue.get_nowait()
+                if chunk is not None:
+                    chunks.append(chunk)
+
+            if chunks:
+                transcriber.add_audio(np.concatenate(chunks))
+
+        transcriber.finish()
+
+    print(f"Saved to {path}")

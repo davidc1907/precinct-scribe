@@ -1,3 +1,5 @@
+WHISPER_RATE = 16000
+
 #Function converting the seconds from whisper into a timestamp
 
 def convert_seconds(seconds):
