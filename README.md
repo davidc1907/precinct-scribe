@@ -272,7 +272,7 @@ Live transcription is based on the LocalAgreement policy from whisper_streaming 
 
 > Macháček, D., Dabre, R., Bojar, O. (2023). *Turning Whisper into Real-Time Transcription System.* Proceedings of IJCNLP-AACL 2023: System Demonstrations. https://aclanthology.org/2023.ijcnlp-demo.3/
 
-The desktop app is built with [CustomTkinter](https://github.com/TomSchimansky/CustomTkinter) (MIT License) and uses the font [Inter](https://rsms.me/inter/) by Rasmus Andersson (SIL Open Font License 1.1, see `fonts/OFL.txt`).
+The desktop app is built with [CustomTkinter](https://github.com/TomSchimansky/CustomTkinter) (MIT License).
 
 ## License
 
