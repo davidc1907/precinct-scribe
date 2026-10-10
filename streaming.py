@@ -77,7 +77,7 @@ ABBREVIATIONS = {
 STEP_SECONDS = 1.0
 TRIM_SECONDS = 15.0
 MAX_BUFFER_SECONDS = 30.0
-PROMPT_WORDS = 60
+PROMPT_WORDS = 40
 MAX_LINE_WORDS = 25
 NO_SPEECH_THRESHOLD = 0.9
 
@@ -125,12 +125,13 @@ def is_hallucination(text):
 
 
 class StreamingTranscriber:
-    def __init__(self, model, language, prompt, f, quiet=False):
+    def __init__(self, model, language, prompt, f, quiet=False, on_line=None):
         self.model = model
         self.language = language
         self.prompt = prompt
         self.f = f
         self.quiet = quiet
+        self.on_line = on_line
 
         self.buffer = np.zeros(0, dtype=np.float32)
         self.buffer_offset = 0.0
@@ -141,7 +142,6 @@ class StreamingTranscriber:
         self.committed_text = []
         self.current_line = []
 
-    # ---------- public ----------
 
     def add_audio(self, samples):
         self.buffer = np.concatenate([self.buffer, samples])
@@ -166,8 +166,6 @@ class StreamingTranscriber:
         if words:
             self.current_line = words
             self.write_line(" [unconfirmed]")
-
-    # ---------- internal ----------
 
     def process(self):
         words = self.transcribe_buffer()
@@ -222,7 +220,6 @@ class StreamingTranscriber:
         return words
 
     def current_prompt(self):
-        recent = self.committed_text[-PROMPT_WORDS:]
         recent = self.committed_text[-PROMPT_WORDS:]
 
         has_punctuation = any(is_sentence_end(word[2], self.language) for word in recent)
@@ -294,6 +291,9 @@ class StreamingTranscriber:
         self.f.write(line + "\n")
         self.f.flush()
 
+        if self.on_line is not None:
+            self.on_line(line)
+
         if not self.quiet:
             print(line)
 
@@ -323,3 +323,23 @@ class StreamingTranscriber:
         self.buffer_offset = cut_time
 
 
+if __name__ == "__main__":
+    print(common_prefix_length(["es", "gibt", "für", "mich", "geld"], ["es", "gibt", "für", "mich", "kein", "geld"]))
+    print(common_prefix_length([], ["es"]))
+    print(common_prefix_length(["a", "b", "c"], ["x", "y", "z"]))
+    print(normalize(" -St--a!at "))
+    print(is_sentence_end("Hallo.", "de"))
+    print(is_sentence_end("7.", "de"))
+    print(is_sentence_end("Mr.", "en"))
+    print(is_hallucination(" Untertitelung des ZDF, 2020"))
+    print(is_hallucination(" [Musik]"))
+    print(is_hallucination(" Die Musikschulen in NRW"))
+
+    t = StreamingTranscriber(None, "de", None, None)
+    t.committed_text = [(11.7, 12.4, " handeln.", "handeln")]
+    t.committed_until = 12.4
+    print(t.drop_already_committed([
+        (11.7, 12.4, " handeln.", "handeln"),
+        (12.35, 12.5, " handeln,", "handeln"),
+        (12.6, 12.9, " Die", "die"),
+    ]))
